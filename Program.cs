@@ -7,21 +7,30 @@ using IDP;
 
 var builder = WebApplication.CreateBuilder(args);
 
+var userConnection = builder.Configuration.GetConnectionString("DefaultConnection");
+var identityConnection = builder.Configuration.GetConnectionString("IdentityConnection");
+var migrationAssembly = typeof(Program).Assembly.GetName().Name;
 // Add services to the container.
-var connectionString = builder.Configuration.GetConnectionString("DefaultConnection") ?? throw new InvalidOperationException("Connection string 'DefaultConnection' not found.");
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
-    options.UseSqlite(connectionString));
+    options.UseSqlServer(userConnection,
+    sql=>sql.MigrationsAssembly(migrationAssembly)));
 builder.Services.AddDatabaseDeveloperPageExceptionFilter();
 
-builder.Services.AddDefaultIdentity<IdentityUser>(options => options.SignIn.RequireConfirmedAccount = true)
+builder.Services.AddIdentity<IdentityUser,IdentityRole>(options => options.SignIn.RequireConfirmedAccount = false)
     .AddEntityFrameworkStores<ApplicationDbContext>();
 builder.Services.AddControllersWithViews();
 builder.Services.AddIdentityServer()
-    .AddInMemoryClients(config.Clients)
-    .AddInMemoryIdentityResources(config.IdentityResources)
-    .AddInMemoryApiResources(config.ApiResources)
-    .AddInMemoryApiScopes(config.ApiScopes)
-    .AddTestUsers(config.Users)
+    .AddAspNetIdentity<IdentityUser>()
+    .AddConfigurationStore(option=> 
+    { 
+        option.ConfigureDbContext = builder => builder.UseSqlServer(identityConnection,
+    sql => sql.MigrationsAssembly(migrationAssembly)); 
+    })
+    .AddOperationalStore(option =>
+    {
+        option.ConfigureDbContext = builder => builder.UseSqlServer(identityConnection,
+    sql => sql.MigrationsAssembly(migrationAssembly));
+    })
     .AddDeveloperSigningCredential();
 
 var app = builder.Build();
